@@ -67,7 +67,7 @@
                                                              (format nil "Are you sure you want to delete all data for ~A store ?" (write-to-string i-copy))))
                                                   (progn 
                                                     (weblocks-stores:clean-store (symbol-value i-copy))
-                                                    (do-information (format nil "All data deleted for ~A" (write-to-string i-copy)))))))
+                                                    (weblocks:do-information (format nil "All data deleted for ~A" (write-to-string i-copy)))))))
                                   ,(weblocks:session-name-string-pair)))
                     "delete all data")
                 (<ul 
@@ -101,8 +101,8 @@
                                                                           (weblocks:do-confirmation 
                                                                             (format nil "Are you sure you want to delete all data for ~A model ?" (write-to-string j-copy))))
                                                                  (progn 
-                                                                   (weblocks-utils:delete-all j-copy :store (symbol-value i))
-                                                                   (do-information (format nil "All data deleted for ~A" (write-to-string j-copy)))))))
+                                                                   (weblocks-stores:delete-model-class (symbol-value i) j-copy)
+                                                                   (weblocks:do-information (format nil "All data deleted for ~A" (write-to-string j-copy)))))))
                                                  ,(weblocks:session-name-string-pair)))
                                    "delete all data")))))))))))
 
