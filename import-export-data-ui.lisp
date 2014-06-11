@@ -1,13 +1,13 @@
 (in-package :weblocks-cms-import-export-data)
 
-(defun import-callback (callback)
+(defun import-callback (callback caption)
   (ps:ps-inline* 
     `(initiate-action 
        ,(weblocks:make-action 
           (lambda (&rest args)
             (weblocks:do-page 
               (weblocks:make-quickform 
-                (weblocks:defview nil (:type weblocks:form :persistp nil)
+                (weblocks:defview nil (:type weblocks:form :persistp nil :caption caption)
                                   (data :requiredp t 
                                         :present-as textarea))
                 :satisfies (lambda (form data)
@@ -34,9 +34,10 @@
   (with-yaclml 
     (<ul
       (loop for i in weblocks-stores:*store-names* do 
-            (let ((i-copy i))
+            (let ((i-copy i)
+                  (store-name (string-downcase (format nil "~a::~a" (package-name (symbol-package i)) i))))
               (<li 
-                (<i (<:as-html (string-downcase (format nil "~a::~a" (package-name (symbol-package i)) i))))
+                (<i (<:as-html store-name))
                 (if (symbol-value i)
                   (<:as-is (format nil "&nbsp;of type ~A" (write-to-string (get-store-type (symbol-value i)))))
                   (<:as-is "&nbsp;(closed)"))
@@ -54,7 +55,8 @@
                 (<a :href "javascript:;"
                     :onclick (import-callback 
                                (lambda (data)
-                                 (import-models-data (symbol-value i-copy) data)))
+                                 (import-models-data (symbol-value i-copy) data))
+                               (format nil "Importing data for all models of store ~A" store-name))
                     "import data")
                 (<:as-is " | ")
                 (<a :href "javascript:;"
@@ -74,7 +76,7 @@
                   (loop for j in (weblocks-stores:list-model-classes (symbol-value i)) do 
                         (let ((j-copy j))
                           (<li (<:as-html (string-downcase (write-to-string j)))
-                               (<:format " (records count - ~A)" (weblocks-utils:count-of j))
+                           (<:format " (records count - ~A)" (weblocks-utils:count-of j))
                                " - "
                                (<a :target "_blank"
                                    :href (weblocks:add-get-param-to-url 
@@ -90,7 +92,8 @@
                                (<a :href "javascript:;"
                                    :onclick (import-callback 
                                               (lambda (data)
-                                                (import-model-data-with-meta-deferred (symbol-value i-copy) j-copy data)))
+                                                (import-model-data-with-meta-deferred (symbol-value i-copy) j-copy data))
+                                              (format nil "Importing data for model ~A, store ~A" j-copy store-name))
                                    "import data")
                                (<:as-is " | ")
                                (<a :href "javascript:;"
