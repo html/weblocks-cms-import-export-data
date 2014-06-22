@@ -1,6 +1,6 @@
 (in-package :weblocks-cms-import-export-data)
 
-(defun import-callback (callback caption)
+(defun import-callback (test-callback callback caption)
   (ps:ps-inline* 
     `(initiate-action 
        ,(weblocks:make-action 
@@ -13,7 +13,7 @@
                 :satisfies (lambda (form data)
                              (let ((ret (handler-case 
                                           (progn 
-                                            (funcall callback (json:decode-json-from-string (slot-value data 'data)))
+                                            (funcall test-callback (json:decode-json-from-string (slot-value data 'data)))
                                             t)
                                           (t (var) (with-output-to-string (s)
                                                      (let ((*print-escape* nil))
@@ -22,16 +22,78 @@
                                  t
                                  (values  nil `((data . ,(format nil "Importing data failed - ~A" ret)))))))
                 :on-success (lambda/cc (form data)
-                                       (progn 
-                                         (weblocks:do-information "Import finished")
-                                         (weblocks:answer form t)))
+                              (progn 
+                                (do-page 
+                                  (lambda (&rest args)
+                                    (with-yaclml 
+                                      (<:as-is "Test"))))
+                                (weblocks:do-information "Import finished")
+                                (weblocks:answer form t)))
                 :on-cancel (lambda (form)
                              (weblocks:answer form t))
                 :answerp nil))))
        ,(weblocks:session-name-string-pair))))
 
+(defun stores-check-html(continuation)
+  (with-yaclml 
+    (if (all-stores-reserialization-ok-p)
+      (<:as-is "All stores are ok !")
+      (<ul 
+        (loop for i in weblocks-stores:*store-names* do 
+              (<li 
+                (if (store-reserialization-ok-p (symbol-value i))
+                  (progn 
+                    (<:format "~A " (prin1-to-string i))
+                    (<i :class "icon-ok"))
+                  (progn 
+                    (<:format "~A " (prin1-to-string i))
+                    (<i :class "icon-ban-circle")
+                    (<br)
+                    (<ul 
+                      (loop for j in (weblocks-stores:list-model-classes (symbol-value i)) do 
+                            (<li
+                              (if (model-reserialization-ok-p j)
+                                (progn 
+                                  (<:format "~A " (prin1-to-string j))
+                                  (<i :class "icon-ok"))
+                                (progn 
+                                  (<:format "~A " (prin1-to-string j))
+                                  (<i :class "icon-ban-circle")
+                                  (<br)
+                                  (<b (<:format 
+                                        "Problem records are: " )
+                                      (<ul 
+                                        (loop for record in (records-with-reserialization-errors j) 
+                                              do
+                                              (<a :href (format nil "javascript:~A"
+                                                                (ps:ps 
+                                                                  (alert 
+                                                                    (ps:LISP (with-output-to-string (*standard-output*)
+                                                                               (print-objects-diff record (reserialized-copy record)))))))
+                                                  (<:as-html record))))))))))))))))
+    (<div :style "text-align:center"
+          (<a :href (weblocks:make-action-url 
+                      (weblocks:make-action 
+                        (lambda (&rest args)
+                          (weblocks:answer continuation)
+                          ;(weblocks:answer (first (weblocks:widget-children (weblocks:root-widget))))
+                          ;(error "~A ~A" (first (weblocks:widget-children (weblocks:root-widget))) (weblocks:widget-continuation (first (weblocks:widget-children (weblocks:root-widget)))))
+                          #+l(weblocks:answer (weblocks:current-dialog)))))
+              :class "btn btn-primary"
+              "Ok")
+          (<br)
+          (<br)
+          )))
+
 (defun import-export-data-ui (&rest args)
   (with-yaclml 
+    (<a :href (weblocks:make-action-url 
+                (weblocks:make-action 
+                  (lambda/cc (&rest args)
+                    (weblocks:do-dialog 
+                      "Checking reserialization results"
+                      #'stores-check-html))))
+        "Check data reserialization for all stores")
     (<ul
       (loop for i in weblocks-stores:*store-names* do 
             (let ((i-copy i)
@@ -54,6 +116,8 @@
                 (<:as-is " | ")
                 (<a :href "javascript:;"
                     :onclick (import-callback 
+                               (lambda (data)
+                                 (import-models-data (symbol-value i-copy) data :testp t))
                                (lambda (data)
                                  (import-models-data (symbol-value i-copy) data))
                                (format nil "Importing data for all models of store ~A" store-name))
@@ -91,6 +155,8 @@
                                (<:as-is " | ")
                                (<a :href "javascript:;"
                                    :onclick (import-callback 
+                                              (lambda (data)
+                                                (import-model-data-with-meta-deferred (symbol-value i-copy) j-copy data :testp t))
                                               (lambda (data)
                                                 (import-model-data-with-meta-deferred (symbol-value i-copy) j-copy data))
                                               (format nil "Importing data for model ~A, store ~A" j-copy store-name))

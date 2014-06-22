@@ -12,8 +12,12 @@
                #:weblocks-stores 
                #:weblocks-utils 
                #:closer-mop 
-               #:cl-json)
-  :components ((:file "package")
-               (:file "weblocks-cms-import-export-data")
-               (:file "import-export-data-ui")))
+               #:cl-json 
+               #:clos-diff)
+  :components 
+  ((:file "package")
+   (:file "serialization")
+   (:file "serialization-testing")
+   (:file "weblocks-cms-import-export-data")
+   (:file "import-export-data-ui")))
 

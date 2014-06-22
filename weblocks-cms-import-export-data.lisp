@@ -26,13 +26,14 @@
 
                                    (json:encode-object-member 
                                      (alexandria:make-keyword (c2mop:slot-definition-name j))
-                                     (if (consp (slot-value i (c2mop:slot-definition-name j)))
-                                       (format nil "#+lisp-code~A" (write-to-string (slot-value i (c2mop:slot-definition-name j))))
-                                       (if (typep (slot-value i (c2mop:slot-definition-name j)) 'standard-object)
-                                         (format nil "#+lisp-object(~A . ~A)" 
-                                                 (write-to-string (type-of (slot-value i (c2mop:slot-definition-name j)))) 
-                                                 (weblocks-stores:object-id (slot-value i (c2mop:slot-definition-name j))))
-                                         (slot-value i (c2mop:slot-definition-name j))))
+                                     (cond 
+                                       ((typep (slot-value i (c2mop:slot-definition-name j)) 'standard-object)
+                                        (format nil "#+lisp-object(~A . ~A)" 
+                                                (write-to-string (type-of (slot-value i (c2mop:slot-definition-name j)))) 
+                                                (weblocks-stores:object-id (slot-value i (c2mop:slot-definition-name j)))))
+                                       ((typep (slot-value i (c2mop:slot-definition-name j)) 'hash-table)
+                                        (format nil "#+hash-table~A" (write-to-string (alexandria:hash-table-alist (slot-value i (c2mop:slot-definition-name j))))))
+                                       (t (slot-value i (c2mop:slot-definition-name j))))
                                      s)))))))
 
 (defun get-model-export-data (model)
@@ -48,7 +49,7 @@
 
 (defvar *update-meta-callbacks* nil)
 
-(defun import-model-data-item (store model item-data &key (update-meta t))
+(defun import-model-data-item (store model item-data &key (update-meta t) (testp nil))
   (declare (special *update-meta-callbacks*))
 
   (let ((item (make-instance model))
@@ -68,8 +69,18 @@
                      (when (stringp slot-value)
                        (ppcre:register-groups-bind 
                          (data)
-                         ("#\\+lisp-code(.*)$"  slot-value)
-                         (setf (slot-value item slot-name) (read-from-string data)))
+                         ((ppcre:create-scanner "#\\+lisp-code(.*)$" :single-line-mode t)  slot-value)
+                         (let ((data (read-from-string data)))
+                           (if (listp data)
+                             (setf data (loop for i in data 
+                                              collect (progn 
+                                                        (if (and (listp i) (equal (car i) :lisp-object))
+                                                          (or 
+                                                            (first-by-values (second i) :id (third i))
+                                                            (error "Cannot find ~A with id ~A" (second i) (third i))
+                                                            )
+                                                          i)))))
+                           (setf (slot-value item slot-name) data)))
                        (ppcre:register-groups-bind 
                          (data)
                          ("#\\+lisp-object(.*)$" slot-value)
@@ -77,32 +88,45 @@
                          (setf (slot-value item slot-name)
                                (or 
                                  (first-by-values (car data) :id (cdr data) :store store)
-                                 (error "Not found model ~A with id ~A" (write-to-string (car data)) (cdr data))))))))))
+                                 (error "Not found model ~A with id ~A" (write-to-string (car data)) (cdr data)))))
+                       (ppcre:register-groups-bind 
+                         (data)
+                         ((ppcre:create-scanner "#\\+hash-table(.*)$" :single-line-mode t) slot-value)
+                         (setf data (read-from-string data))
+                         (let ((result-hash (make-hash-table)))
+                           (loop for (key . value) in data do 
+                                 (setf (gethash key result-hash) value))
+                           (setf (slot-value item slot-name) result-hash)))
+                       )))))
       (if update-meta 
         (update-meta)
         (push #'update-meta *update-meta-callbacks*)))
-    (weblocks-stores:persist-object store item)))
+    (unless testp 
+      (weblocks-stores:persist-object store item))
+    item))
 
 (defun update-model-id-counter (store model)
   (let ((max (apply #'max (list* -1 (mapcar #'weblocks-stores:object-id (all-of model :store store))))))
     (ignore-errors (setf (slot-value (weblocks-prevalence::get-root-object store model) 'weblocks-prevalence::next-id) max))))
 
-(defun import-model-data (store model data &key (update-meta t))
-  (weblocks-utils:delete-all model :store store)
+(defun import-model-data (store model data &key (update-meta t) (testp nil))
+  (unless testp 
+    (weblocks-utils:delete-all model :store store))
 
-  (loop for i in data do
-        (import-model-data-item store model i :update-meta update-meta))
+  (prog1 
+    (loop for i in data collect
+          (import-model-data-item store model i :update-meta update-meta :testp testp))
 
-  (update-model-id-counter store model))
+    (update-model-id-counter store model)))
 
 (defun run-update-meta-callbacks ()
   (declare (special *update-meta-callbacks*))
   (mapcar #'funcall *update-meta-callbacks*))
 
-(defun import-model-data-with-meta-deferred (store data data-package)
+(defun import-model-data-with-meta-deferred (store data data-package &key (testp nil))
   (let ((*update-meta-callbacks* nil))
     (declare (special *update-meta-callbacks*))
-    (import-model-data store data data-package :update-meta nil)
+    (import-model-data store data data-package :update-meta nil :testp testp)
     (run-update-meta-callbacks)))
 
 (defun import-models-data (store data &optional data-package)
