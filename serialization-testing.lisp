@@ -41,13 +41,15 @@
       (t (describe obj  s)))))
 
 (defun print-objects-diff (obj1 obj2)
-  (let ((difference (cdr (clos-diff:diff obj1 obj2 :test #'equalp-improved))))
-    (when difference 
-      (loop for (dummy slot value) in difference do 
-            (format t "Slot ~A is different~%~%Object 1 value - ~%~%~A~%Object 2 value - ~%~%~A~%~%" 
-                    (prin1-to-string slot)
-                    (smart-describe-to-string (slot-value obj1 slot))
-                    (smart-describe-to-string (slot-value obj2 slot)))))))
+  (if (equal (type-of obj1) (type-of obj2))
+    (let ((difference (cdr (clos-diff:diff obj1 obj2 :test #'equalp-improved))))
+      (when difference 
+        (loop for (dummy slot value) in difference do 
+              (format t "Slot ~A is different~%~%Object 1 value - ~%~%~A~%Object 2 value - ~%~%~A~%~%" 
+                      (prin1-to-string slot)
+                      (smart-describe-to-string (slot-value obj1 slot))
+                      (smart-describe-to-string (slot-value obj2 slot))))))
+    (format t "Objects types not equal - ~A ~A~%" (type-of obj1) (type-of obj2))))
 
 (defun print-records-serialized-with-errors (model)
   "Reserializes all records for specific `model`, if any reserialized record is different from original, shows a message"

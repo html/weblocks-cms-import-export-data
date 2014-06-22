@@ -43,9 +43,18 @@
                   (alexandria:make-keyword (c2mop:slot-definition-name j))
                   (serialize-value value))))))))
 
-(defmethod weblocks-stores:serialize (obj &key (format (eql :json)))
+(defmethod weblocks-stores:serialize ((obj standard-object) &key (format (eql :json)))
   (with-output-to-string (json:*json-output*)
     (weblocks-stores::serialize-impl obj :format format)))
+
+(defmethod weblocks-stores:serialize ((list list) &key (format (eql :json)))
+  (with-output-to-string (json:*json-output*)
+    (json:with-array 
+      (json:*json-output*)
+      (loop for i in list
+            do 
+            (json:as-array-member (json:*json-output*)
+              (format json:*json-output* (weblocks-stores:serialize i :format :json)))))))
 
 (defun first-by-id (model id)
   (first-by-values model :id id))

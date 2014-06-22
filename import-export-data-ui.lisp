@@ -65,12 +65,13 @@
                                       (<ul 
                                         (loop for record in (records-with-reserialization-errors j) 
                                               do
-                                              (<a :href (format nil "javascript:~A"
-                                                                (ps:ps 
-                                                                  (alert 
-                                                                    (ps:LISP (with-output-to-string (*standard-output*)
-                                                                               (print-objects-diff record (reserialized-copy record)))))))
-                                                  (<:as-html record))))))))))))))))
+                                              (<li 
+                                                (<a :href (format nil "javascript:~A"
+                                                                  (ps:ps 
+                                                                    (alert 
+                                                                      (ps:LISP (with-output-to-string (*standard-output*)
+                                                                                 (print-objects-diff record (reserialized-copy record)))))))
+                                                    (<:as-html record)))))))))))))))))
     (<div :style "text-align:center"
           (<a :href (weblocks:make-action-url 
                       (weblocks:make-action 

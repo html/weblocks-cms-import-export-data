@@ -16,25 +16,7 @@
           (return-from get-store-type i))))
 
 (defun write-model-export-data (model s)
-  (json:with-array (s)
-                   (loop for i in (all-of model)
-                         do 
-                         (json:as-array-member (s)
-                           (json:with-object (s)
-                             (loop for j in (weblocks-stores:class-visible-slots model) 
-                                   do 
-
-                                   (json:encode-object-member 
-                                     (alexandria:make-keyword (c2mop:slot-definition-name j))
-                                     (cond 
-                                       ((typep (slot-value i (c2mop:slot-definition-name j)) 'standard-object)
-                                        (format nil "#+lisp-object(~A . ~A)" 
-                                                (write-to-string (type-of (slot-value i (c2mop:slot-definition-name j)))) 
-                                                (weblocks-stores:object-id (slot-value i (c2mop:slot-definition-name j)))))
-                                       ((typep (slot-value i (c2mop:slot-definition-name j)) 'hash-table)
-                                        (format nil "#+hash-table~A" (write-to-string (alexandria:hash-table-alist (slot-value i (c2mop:slot-definition-name j))))))
-                                       (t (slot-value i (c2mop:slot-definition-name j))))
-                                     s)))))))
+  (write-string (weblocks-stores:serialize (all-of model) :format :json) s))
 
 (defun get-model-export-data (model)
   (with-output-to-string (s)
