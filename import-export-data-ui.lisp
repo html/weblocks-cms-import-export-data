@@ -23,7 +23,7 @@
                                  (values  nil `((data . ,(format nil "Importing data failed - ~A" ret)))))))
                 :on-success (lambda/cc (form data)
                               (progn 
-                                (do-page 
+                                (weblocks:do-page 
                                   (lambda (&rest args)
                                     (with-yaclml 
                                       (<:as-is "Test"))))
