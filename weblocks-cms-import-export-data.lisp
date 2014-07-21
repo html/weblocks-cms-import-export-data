@@ -29,86 +29,37 @@
             (json:as-object-member (i s)
               (write-model-export-data i s))))))
 
+(defvar *update-meta-deferred* nil)
 (defvar *update-meta-callbacks* nil)
-
-(defun import-model-data-item (store model item-data &key (update-meta t) (testp nil))
-  (declare (special *update-meta-callbacks*))
-
-  (let ((item (make-instance model))
-        (slot-name))
-
-    (loop for i in (weblocks-stores:class-visible-slots model) 
-          do 
-          (setf slot-name (c2mop:slot-definition-name i))
-          (setf (slot-value item slot-name)
-                (cdr (assoc (alexandria:make-keyword slot-name) item-data))))
-
-    (flet ((update-meta ()
-             (loop for i in (weblocks-stores:class-visible-slots model) 
-                   do 
-                   (let* ((slot-name (c2mop:slot-definition-name i))
-                          (slot-value (slot-value item slot-name)))
-                     (when (stringp slot-value)
-                       (ppcre:register-groups-bind 
-                         (data)
-                         ((ppcre:create-scanner "#\\+lisp-code(.*)$" :single-line-mode t)  slot-value)
-                         (let ((data (read-from-string data)))
-                           (if (listp data)
-                             (setf data (loop for i in data 
-                                              collect (progn 
-                                                        (if (and (listp i) (equal (car i) :lisp-object))
-                                                          (or 
-                                                            (first-by-values (second i) :id (third i))
-                                                            (error "Cannot find ~A with id ~A" (second i) (third i))
-                                                            )
-                                                          i)))))
-                           (setf (slot-value item slot-name) data)))
-                       (ppcre:register-groups-bind 
-                         (data)
-                         ("#\\+lisp-object(.*)$" slot-value)
-                         (setf data (read-from-string data))
-                         (setf (slot-value item slot-name)
-                               (or 
-                                 (first-by-values (car data) :id (cdr data) :store store)
-                                 (error "Not found model ~A with id ~A" (write-to-string (car data)) (cdr data)))))
-                       (ppcre:register-groups-bind 
-                         (data)
-                         ((ppcre:create-scanner "#\\+hash-table(.*)$" :single-line-mode t) slot-value)
-                         (setf data (read-from-string data))
-                         (let ((result-hash (make-hash-table)))
-                           (loop for (key . value) in data do 
-                                 (setf (gethash key result-hash) value))
-                           (setf (slot-value item slot-name) result-hash)))
-                       )))))
-      (if update-meta 
-        (update-meta)
-        (push #'update-meta *update-meta-callbacks*)))
-    (unless testp 
-      (weblocks-stores:persist-object store item))
-    item))
 
 (defun update-model-id-counter (store model)
   (let ((max (apply #'max (list* -1 (mapcar #'weblocks-stores:object-id (all-of model :store store))))))
     (ignore-errors (setf (slot-value (weblocks-prevalence::get-root-object store model) 'weblocks-prevalence::next-id) max))))
 
-(defun import-model-data (store model data &key (update-meta t) (testp nil))
+(defun import-model-data (store model json-string &key (update-meta t) (testp nil))
   (unless testp 
     (weblocks-utils:delete-all model :store store))
 
-  (prog1 
-    (loop for i in data collect
-          (import-model-data-item store model i :update-meta update-meta :testp testp))
+  (let* ((data (json:decode-json-from-string json-string))
+         (result-records (loop for i in data collect
+                               (weblocks-stores:unserialize (json:encode-json-alist-to-string i) :format :json))))
+    (unless testp 
+      (loop for i in result-records do 
+            (weblocks-stores:persist-object store i)))
 
-    (update-model-id-counter store model)))
+    (update-model-id-counter store model)
+
+    result-records))
 
 (defun run-update-meta-callbacks ()
   (declare (special *update-meta-callbacks*))
   (mapcar #'funcall *update-meta-callbacks*))
 
-(defun import-model-data-with-meta-deferred (store data data-package &key (testp nil))
-  (let ((*update-meta-callbacks* nil))
+(defun import-model-data-with-meta-deferred (store model data &key (testp nil))
+  (let ((*update-meta-callbacks* nil)
+        (*update-meta-deferred* t))
     (declare (special *update-meta-callbacks*))
-    (import-model-data store data data-package :update-meta nil :testp testp)
+    (import-model-data store model data :update-meta nil :testp testp)
     (run-update-meta-callbacks)))
 
 (defun import-models-data (store data &optional data-package)

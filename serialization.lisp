@@ -60,8 +60,7 @@
   (first-by-values model :id id))
 
 (defmethod weblocks-stores:unserialize (obj &key (format (eql :json)))
-  (let* ((update-meta t)
-         (item-data (json:decode-json-from-string obj))
+  (let* ((item-data (json:decode-json-from-string obj))
          (model (read-from-string (cdr (assoc :cl-type item-data))))
          (item (make-instance model))
          (slot-name))
@@ -72,44 +71,30 @@
           (setf (slot-value item slot-name)
                 (cdr (assoc (alexandria:make-keyword slot-name) item-data))))
 
-    (labels ((eval-regions (value)
-               (if (consp value)
-                 (if (equal :eval (car value))
-                   (eval (cadr value))
-                   (cons 
-                     (eval-regions (car value))
-                     (eval-regions (cdr value))))
-                 (if (hash-table-p value)
-                   (progn 
-                     (loop for i being the hash-keys of value do 
-                           (setf (gethash i value) (eval-regions (gethash i value))))
-                     value)
-                   value)))
-             (unserialize-value (slot-value)
+    (labels ((unserialize-value (slot-value)
                (cond 
+                 ((and (stringp slot-value) (string= "f" slot-value))
+                  t)
                  ((stringp slot-value)
                   (ppcre:register-groups-bind 
                     (data )
                     ((ppcre:create-scanner "#\\+lisp(.*)$" :single-line-mode t) slot-value)
                     (setf data (read-from-string data)) 
+                    (when (and (consp data) (equal :eval (car data)))
+                      (setf data (eval (second data))))
                     (return-from unserialize-value data))
                   slot-value)
                  (t slot-value))))
       (flet ((update-meta ()
-             (loop for i in (weblocks-stores:class-visible-slots model) 
-                   do 
-                   (let* ((slot-name (c2mop:slot-definition-name i))
-                          (slot-value (slot-value item slot-name)))
-                     (when (or t (equal slot-name 'weblocks-cms::social-networks-data)) ;XXX
+               (loop for i in (weblocks-stores:class-visible-slots model) 
+                     do 
+                     (let* ((slot-name (c2mop:slot-definition-name i))
+                            (slot-value (slot-value item slot-name)))
                        (setf (slot-value item slot-name)
-                             (unserialize-value slot-value))
-                       (loop for i from 1 to 2 do 
-                             (setf (slot-value item slot-name) (eval-regions (slot-value item slot-name)))
-                             )
-                       )))))
-      (if update-meta 
-        (update-meta)
-        (push #'update-meta *update-meta-callbacks*))))
+                             (unserialize-value slot-value))))))
+        (if (not *update-meta-deferred*) 
+          (update-meta)
+          (push #'update-meta *update-meta-callbacks*))))
 
     item))
 

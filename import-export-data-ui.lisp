@@ -13,7 +13,7 @@
                 :satisfies (lambda (form data)
                              (let ((ret (handler-case 
                                           (progn 
-                                            (funcall test-callback (json:decode-json-from-string (slot-value data 'data)))
+                                            (funcall test-callback (slot-value data 'data))
                                             t)
                                           (t (var) (with-output-to-string (s)
                                                      (let ((*print-escape* nil))
@@ -23,10 +23,7 @@
                                  (values  nil `((data . ,(format nil "Importing data failed - ~A" ret)))))))
                 :on-success (lambda/cc (form data)
                               (progn 
-                                (weblocks:do-page 
-                                  (lambda (&rest args)
-                                    (with-yaclml 
-                                      (<:as-is "Test"))))
+                                (funcall callback (slot-value data 'data))
                                 (weblocks:do-information "Import finished")
                                 (weblocks:answer form t)))
                 :on-cancel (lambda (form)
