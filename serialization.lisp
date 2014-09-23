@@ -75,7 +75,7 @@
           (setf (slot-value item slot-name)
                 (cdr (assoc (alexandria:make-keyword slot-name) item-data))))
 
-    (labels ((unserialize-value (slot-value)
+    (labels ((unserialize-value (item slot-name slot-value)
                (cond 
                  ((and (stringp slot-value) (string= "f" slot-value))
                   t)
@@ -85,7 +85,16 @@
                     ((ppcre:create-scanner "#\\+lisp(.*)$" :single-line-mode t) slot-value)
                     (setf data (read-from-string data)) 
                     (when (and (consp data) (equal :eval (car data)))
-                      (setf data (eval (second data))))
+                      (if *update-meta-deferred*
+                        (progn 
+                          (push 
+                            (lambda ()
+                              (setf (slot-value item slot-name)
+                                    (eval (second data))))
+                            *update-meta-callbacks*)
+                          (return-from unserialize-value :deferred-value))
+                        (setf data (eval (second data)))))
+                    
                     (return-from unserialize-value data))
                   slot-value)
                  (t slot-value))))
@@ -95,10 +104,9 @@
                      (let* ((slot-name (c2mop:slot-definition-name i))
                             (slot-value (slot-value item slot-name)))
                        (setf (slot-value item slot-name)
-                             (unserialize-value slot-value))))))
-        (if (not *update-meta-deferred*) 
-          (update-meta)
-          (push #'update-meta *update-meta-callbacks*))))
+                             (unserialize-value item slot-name slot-value))))))
+        
+        (update-meta)))
 
     item))
 

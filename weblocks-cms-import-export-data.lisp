@@ -56,7 +56,7 @@
 
 (defun run-update-meta-callbacks ()
   (declare (special *update-meta-callbacks*))
-  (mapcar #'funcall *update-meta-callbacks*))
+  (mapcar #'funcall (reverse *update-meta-callbacks*)))
 
 (defun import-model-data-with-meta-deferred (store model data &key (testp nil))
   (let ((*update-meta-callbacks* nil)
