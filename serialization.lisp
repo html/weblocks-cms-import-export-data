@@ -1,5 +1,11 @@
 (in-package :weblocks-cms-import-export-data)
 
+(defgeneric serialization-link-to-data-object (object)
+  (:method ((obj standard-object))
+   `(:eval 
+      (first-by-id ',(type-of obj)
+                   ,(weblocks-stores:object-id obj)))))
+
 (defmethod weblocks-stores::serialize-impl (obj &key (format (eql :json)))
   (labels ((lisp-code (value inside-lisp-code-p)
              (if inside-lisp-code-p 
@@ -11,9 +17,7 @@
                 nil)
                ((typep value 'standard-object)
                 (lisp-code 
-                  `(:eval 
-                     (first-by-id ',(type-of value)
-                                  ,(weblocks-stores:object-id value)))
+                  (serialization-link-to-data-object value)
                   inside-lisp-code-p))
                ((typep value 'hash-table)
                 (lisp-code 

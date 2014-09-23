@@ -138,7 +138,7 @@
                   (loop for j in (weblocks-stores:list-model-classes (symbol-value i)) do 
                         (let ((j-copy j))
                           (<li (<:as-html (string-downcase (write-to-string j)))
-                           (<:format " (records count - ~A)" (weblocks-utils:count-of j))
+                           (<:format " (records count - ~A)" (weblocks-utils:count-of j :store (symbol-value i)))
                                " - "
                                (<a :target "_blank"
                                    :href (weblocks:add-get-param-to-url 

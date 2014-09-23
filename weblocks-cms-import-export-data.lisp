@@ -10,6 +10,9 @@
      ,@body))
 
 (defun get-store-type (store)
+  (if (equal "HU.DWIM.PEREC" (package-name (symbol-package (type-of store))) )
+    (return-from get-store-type :perec))
+
   (loop for i in (weblocks-stores:list-store-types) do
         (when (find-symbol (string-upcase (type-of store))
                            (find-package (alexandria:make-keyword (format nil "WEBLOCKS-~A" (string-upcase i)))))
