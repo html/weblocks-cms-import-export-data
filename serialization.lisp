@@ -58,7 +58,7 @@
       (loop for i in list
             do 
             (json:as-array-member (json:*json-output*)
-              (format json:*json-output* (weblocks-stores:serialize i :format :json)))))))
+              (format json:*json-output* "~A" (weblocks-stores:serialize i :format :json)))))))
 
 (defun first-by-id (model id)
   (first-by-values model :id id))
